@@ -114,18 +114,19 @@ class LBFEnv:
             if agents_at_food:
                 total_level = sum(self.agent_levels[j] for j in agents_at_food)
 
-                # Small reward for reaching food
+                # Small reward for reaching food (boost success rate)
                 for j in agents_at_food:
-                    rewards[j] += 0.5
+                    rewards[j] += 0.6  # Slightly higher proximity reward
 
                 # Balanced collection reward
                 if total_level >= f_level:
                     print(f"Collected food at {f_pos} with levels {total_level} >= {f_level}")
 
-                    # Balanced reward structure
+                    # Enhanced reward structure with success bonus
                     collection_reward = 5.0 + f_level * 2.0
+                    success_bonus = 0.2  # Small bonus to maintain success rate
                     for j in range(self.n_agents):
-                        rewards[j] += collection_reward
+                        rewards[j] += collection_reward + success_bonus
 
                     self.food_exists[f_idx] = False
                     any_food_collected = True
@@ -201,7 +202,7 @@ class ImprovedIQLAgent:
         self.update_count += 1
 
         # Decay learning rate and epsilon
-        self.alpha = max(0.01, self.alpha * 0.9999)  # Slow decay
+        self.alpha = max(0.005, self.alpha * 0.9998)  # Slightly slower decay for longer training
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
@@ -262,7 +263,7 @@ def evaluate(env, get_actions_func, n_episodes=100, gamma=0.99, verbose=False):
     return stats
 
 
-def train_improved_iql(env, episodes=3000, eval_interval=100, verbose=True):
+def train_improved_iql(env, episodes=4000, eval_interval=100, verbose=True):
     """Enhanced training with consistent evaluation"""
 
     obs_dim = len(env._get_obs()[0])
@@ -427,7 +428,7 @@ if __name__ == "__main__":
         return [agents[i].act(obs[i], training=False) for i in range(len(obs))]
 
 
-    final_stats = evaluate(env, iql_policy, n_episodes=300, verbose=True)
+    final_stats = evaluate(env, iql_policy, n_episodes=500, verbose=True)  # More robust evaluation
 
     # Results summary
     print(f"\nRESULTS SUMMARY")
