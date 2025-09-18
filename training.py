@@ -1,5 +1,6 @@
 import numpy as np
 import random
+from collections import deque
 from environment import LBFEnv
 from agent import AdvancedIQLAgent
 from hyperparams import HyperParams
