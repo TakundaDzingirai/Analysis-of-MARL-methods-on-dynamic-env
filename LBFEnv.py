@@ -16,15 +16,15 @@ import multiprocessing
 @dataclass
 class HyperParams:
     """Hyperparameter configuration"""
-    alpha: float = 0.25
+    alpha: float = 0.28457111354474063
     gamma: float = 0.99
-    epsilon: float = 0.9
-    epsilon_decay: float = 0.995
-    epsilon_min: float = 0.03
-    alpha_decay: float = 0.95
-    alpha_min: float = 0.01
-    reward_scaling: float = 1.0
-    exploration_bonus: float = 0.2
+    epsilon: float = 0.7849863661813384
+    epsilon_decay: float = 0.998  # Adjusted from 0.9963570200350645
+    epsilon_min: float = 0.059031733973677815
+    alpha_decay: float = 0.98  # Adjusted from 0.9478492911803126
+    alpha_min: float = 0.05  # Adjusted from 0.01
+    reward_scaling: float = 1.4656855889679763
+    exploration_bonus: float = 0.2  # Adjusted from 0.4488916678936584
 
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items()}
@@ -32,7 +32,7 @@ class HyperParams:
 
 class LBFEnv:
     def __init__(self, grid_size=4, n_agents=2, n_foods=2, agent_levels=[1, 2],
-                 food_levels=[1, 2], max_steps=30, seed=None):
+                 food_levels=[1, 2], max_steps=40, seed=None):
         self.grid_size = grid_size
         self.n_agents = n_agents
         self.n_foods = n_foods
@@ -163,7 +163,7 @@ class LBFEnv:
 
                 # Collection logic
                 if total_level >= f_level:
-                    collection_reward = 8.0 + f_level * 3.0
+                    collection_reward = 10.0 + f_level * 3.0  # Adjusted from 8.0
                     cooperation_bonus = 1.0 if len(agents_at_food) > 1 else 0.0
 
                     for j in range(self.n_agents):
@@ -179,11 +179,14 @@ class LBFEnv:
                 rewards[j] += completion_bonus
             done = True
 
-        # Time penalty
+        # Time penalty and uncollected food penalty
         if not any_food_collected:
             time_penalty = 0.02 * (self.step_count / self.max_steps)
             for j in range(self.n_agents):
                 rewards[j] -= time_penalty
+        if done and any(self.food_exists):
+            for j in range(self.n_agents):
+                rewards[j] -= 0.5 * sum(self.food_exists)
 
         obs = self._get_obs()
         return obs, rewards.tolist(), done, [{}] * self.n_agents
@@ -385,8 +388,9 @@ def evaluate_agent(env_params, agent_policy_func, n_episodes=100, gamma=0.99, se
     }
 
 
-def train_advanced_iql(env, hyperparams: HyperParams, episodes=3000,
-                       eval_interval=100, verbose=False, seed=None):
+def train_advanced_iql(env, hyperparams: HyperParams, episodes=5000,  # Adjusted from 3000
+                       eval_interval=200,  # Adjusted from 100
+                       verbose=False, seed=None):
     """Enhanced training with comprehensive tracking"""
 
     if seed is not None:
@@ -768,7 +772,7 @@ if __name__ == "__main__":
 
     env = LBFEnv(**env_params, seed=42)
     best_agents, best_history = train_advanced_iql(
-        env, best_params, episodes=4000, eval_interval=100, verbose=True, seed=42
+        env, best_params, episodes=5000, eval_interval=200, verbose=True, seed=42
     )
 
     # Final comprehensive evaluation
