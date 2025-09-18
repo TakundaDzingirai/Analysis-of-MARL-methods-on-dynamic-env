@@ -163,7 +163,8 @@ class LBFEnv:
 
                 # Collection logic
                 if total_level >= f_level:
-                    collection_reward = 10.0 + f_level * 3.0  # Adjusted from 8.0
+                    # collection_reward = 10.0 + f_level * 3.0  # Adjusted from 8.0
+                    collection_reward = 11.0 + f_level * 3.0  # Adjusted from 10.0
                     cooperation_bonus = 1.0 if len(agents_at_food) > 1 else 0.0
 
                     for j in range(self.n_agents):
@@ -706,13 +707,21 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Environment configuration
+    # env_params = {
+    #     'grid_size': 4,
+    #     'n_agents': 2,
+    #     'n_foods': 2,
+    #     'agent_levels': [1, 2],
+    #     'food_levels': [1, 2],
+    #     'max_steps': 40
+    # }
     env_params = {
         'grid_size': 4,
         'n_agents': 2,
-        'n_foods': 2,
+        'n_foods': 3,  # Increased from 2
         'agent_levels': [1, 2],
-        'food_levels': [1, 2],
-        'max_steps': 40
+        'food_levels': [1, 2, 2],  # Adjusted for 3 foods
+        'max_steps': 50  # Consider 50 if needed
     }
 
     env = LBFEnv(**env_params, seed=42)
