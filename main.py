@@ -1,10 +1,33 @@
 import numpy as np
 import random
 import json
+import os
 from environment import LBFEnv
 from training import evaluate_agent, train_advanced_iql
 from optimization import HyperparameterOptimizer
 from visualization import plot_optimization_results, plot_training_curves
+from hyperparams import HyperParams
+
+def load_optimal_hyperparams(filepath='optimal_hyperparams.json'):
+    """Load optimal hyperparameters from a file if it exists."""
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+                return HyperParams(**data)
+        except (json.JSONDecodeError, TypeError, KeyError) as e:
+            print(f"Error loading hyperparameters from {filepath}: {e}")
+            return None
+    return None
+
+def save_optimal_hyperparams(hyperparams, filepath='optimal_hyperparams.json'):
+    """Save optimal hyperparameters to a file."""
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(hyperparams.to_dict(), f, indent=2)
+        print(f"Optimal hyperparameters saved to '{filepath}'")
+    except Exception as e:
+        print(f"Could not save hyperparameters to '{filepath}': {e}")
 
 def main():
     print("ADVANCED IQL WITH HYPERPARAMETER OPTIMIZATION")
@@ -41,27 +64,41 @@ def main():
 
     optimizer = HyperparameterOptimizer(env_params)
     use_random_search = True
+    hyperparams_file = 'optimal_hyperparams.json'
 
-    if use_random_search:
-        best_params, results = optimizer.random_search(n_trials=30, training_episodes=800, seed=42)
-        method_name = "Random Search"
+    # Try to load existing optimal hyperparameters
+    best_params = load_optimal_hyperparams(hyperparams_file)
+    results = []
+
+    if best_params is None:
+        print("No valid saved hyperparameters found. Running random search...")
+        if use_random_search:
+            best_params, results = optimizer.random_search(n_trials=30, training_episodes=800, seed=42)
+            method_name = "Random Search"
+        else:
+            best_params, results = optimizer.grid_search(training_episodes=600)
+            method_name = "Grid Search"
+
+        # Save the optimal hyperparameters
+        save_optimal_hyperparams(best_params, hyperparams_file)
+
+        print(f"\nTOP 5 RESULTS FROM {method_name.upper()}:")
+        print("-" * 60)
+        sorted_results = sorted(results, key=lambda x: x['score'], reverse=True)[:5]
+        for i, result in enumerate(sorted_results):
+            print(f"Rank {i + 1}: Score={result['score']:.2f}")
+            print(f"  Return: {result['stats']['mean_return']:.2f}±{result['stats']['std_return']:.2f}")
+            print(f"  Foods: {result['stats']['mean_foods']:.2f}, Success: {result['stats']['success_rate']:.2f}")
+            print(f"  Hyperparams: {result['hyperparams']}")
+            print()
     else:
-        best_params, results = optimizer.grid_search(training_episodes=600)
-        method_name = "Grid Search"
+        print(f"Loaded optimal hyperparameters from '{hyperparams_file}':")
+        print(best_params.to_dict())
+        method_name = "Loaded from File"
 
-    print(f"\nTOP 5 RESULTS FROM {method_name.upper()}:")
-    print("-" * 60)
-    sorted_results = sorted(results, key=lambda x: x['score'], reverse=True)[:5]
-    for i, result in enumerate(sorted_results):
-        print(f"Rank {i + 1}: Score={result['score']:.2f}")
-        print(f"  Return: {result['stats']['mean_return']:.2f}±{result['stats']['std_return']:.2f}")
-        print(f"  Foods: {result['stats']['mean_foods']:.2f}, Success: {result['stats']['success_rate']:.2f}")
-        print(f"  Hyperparams: {result['hyperparams']}")
-        print()
-
-    print(f"TRAINING WITH OPTIMIZED HYPERPARAMETERS")
+    print(f"\nTRAINING WITH OPTIMIZED HYPERPARAMETERS")
     print("-" * 40)
-    print(f"Using best hyperparams: {best_params.to_dict()}")
+    print(f"Using hyperparams: {best_params.to_dict()}")
 
     env = LBFEnv(**env_params, seed=42)
     best_agents, best_history = train_advanced_iql(
@@ -111,7 +148,8 @@ def main():
         print(f"Try different hyperparameter ranges or longer training.")
 
     print(f"\nGENERATING VISUALIZATIONS...")
-    plot_optimization_results(results, f"Hyperparameter {method_name} Results")
+    if results:  # Only plot optimization results if a search was performed
+        plot_optimization_results(results, f"Hyperparameter {method_name} Results")
     plot_training_curves(best_history, "Training with Optimized Hyperparameters")
 
     results_summary = {
