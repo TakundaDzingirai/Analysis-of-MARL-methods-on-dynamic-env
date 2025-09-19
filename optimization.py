@@ -2,7 +2,7 @@ import numpy as np
 import time
 import json
 from environment import LBFEnv
-from training import train_advanced_iql, evaluate_agent
+from training import train_iql, train_maddpg, evaluate_agent
 from hyperparams import HyperParams
 
 class HyperparameterOptimizer:
@@ -10,9 +10,9 @@ class HyperparameterOptimizer:
         self.env_params = env_params
         self.results = []
 
-    def random_search(self, n_trials=30, training_episodes=800, seed=42, early_stopping_trials=15, min_trials=20):
-        """Advanced random search with early stopping"""
-        print(f"Starting random hyperparameter search with up to {n_trials} trials, "
+    def random_search(self, model_type='iql', n_trials=30, training_episodes=800, seed=42, early_stopping_trials=15, min_trials=20):
+        """Random search with early stopping for IQL or MADDPG"""
+        print(f"Starting random hyperparameter search for {model_type.upper()} with up to {n_trials} trials, "
               f"minimum {min_trials} trials, and early stopping after {early_stopping_trials} trials without improvement...")
         start_time = time.time()
 
@@ -21,39 +21,48 @@ class HyperparameterOptimizer:
         no_improvement_count = 0
         trial = 0
 
-        param_ranges = {
-            'alpha': (0.05, 0.4),
-            'gamma': [0.95, 0.97, 0.99, 0.995],
-            'epsilon': (0.7, 0.95),
-            'epsilon_decay': (0.99, 0.999),
-            'epsilon_min': (0.01, 0.08),
-            'alpha_decay': (0.92, 0.98),
-            'reward_scaling': (0.8, 1.5),
-            'exploration_bonus': (0.1, 0.5)
-        }
+        if model_type == 'iql':
+            param_ranges = {
+                'alpha': (0.05, 0.4),
+                'gamma': [0.95, 0.97, 0.99, 0.995],
+                'epsilon': (0.7, 0.95),
+                'epsilon_decay': (0.99, 0.999),
+                'epsilon_min': (0.01, 0.08),
+                'alpha_decay': (0.92, 0.98),
+                'reward_scaling': (0.8, 1.5),
+                'exploration_bonus': (0.1, 0.5)
+            }
+        else:  # maddpg
+            param_ranges = {
+                'lr_actor': (1e-4, 1e-3),
+                'lr_critic': (1e-3, 2e-3),
+                'gamma': [0.95, 0.99],
+                'tau': (0.005, 0.02),
+                'reward_scaling': (0.8, 1.5)
+            }
 
         while trial < n_trials and (trial < min_trials or no_improvement_count < early_stopping_trials):
             trial += 1
-            hyperparams = HyperParams(
-                alpha=np.random.uniform(*param_ranges['alpha']),
-                gamma=np.random.choice(param_ranges['gamma']),
-                epsilon=np.random.uniform(*param_ranges['epsilon']),
-                epsilon_decay=np.random.uniform(*param_ranges['epsilon_decay']),
-                epsilon_min=np.random.uniform(*param_ranges['epsilon_min']),
-                alpha_decay=np.random.uniform(*param_ranges['alpha_decay']),
-                reward_scaling=np.random.uniform(*param_ranges['reward_scaling']),
-                exploration_bonus=np.random.uniform(*param_ranges['exploration_bonus'])
-            )
+            hyperparams = HyperParams(**{
+                key: np.random.uniform(*param_ranges[key]) if isinstance(param_ranges[key], tuple)
+                else np.random.choice(param_ranges[key])
+                for key in param_ranges
+            })
 
             print(f"Trial {trial}/{n_trials}: Testing hyperparams...")
             env = LBFEnv(**self.env_params, seed=seed)
-            agents, history = train_advanced_iql(
-                env, hyperparams, episodes=training_episodes,
-                eval_interval=training_episodes // 2, verbose=False, seed=seed + trial
-            )
-
-            def policy_func(o):
-                return [agents[i].act(o[i], training=False) for i in range(len(agents))]
+            if model_type == 'iql':
+                agents, history = train_iql(
+                    env, hyperparams, episodes=training_episodes,
+                    eval_interval=training_episodes // 2, verbose=False, seed=seed + trial
+                )
+                policy_func = lambda o: [agents[i].act(o[i], training=False) for i in range(len(agents))]
+            else:  # maddpg
+                maddpg, history = train_maddpg(
+                    env, hyperparams, episodes=training_episodes,
+                    eval_interval=training_episodes // 2, verbose=False, seed=seed + trial
+                )
+                policy_func = lambda o: maddpg.act(o, training=False)
 
             final_stats = evaluate_agent(self.env_params, policy_func, n_episodes=100, seed=seed)
 
@@ -70,7 +79,7 @@ class HyperparameterOptimizer:
 
             self.results.append(result)
 
-            if score > best_score + 0.1:  # Improvement threshold
+            if score > best_score + 0.1:
                 best_score = score
                 best_params = hyperparams
                 no_improvement_count = 0
@@ -82,10 +91,9 @@ class HyperparameterOptimizer:
                       f"Success: {final_stats['success_rate']:.2f}, Foods: {final_stats['mean_foods']:.2f}, "
                       f"No improvement for {no_improvement_count}/{early_stopping_trials} trials")
 
-            # Save intermediate best parameters
             if best_params is not None:
                 try:
-                    with open('intermediate_hyperparams.json', 'w') as f:
+                    with open(f'intermediate_{model_type}_hyperparams.json', 'w') as f:
                         json.dump(best_params.to_dict(), f, indent=2)
                 except Exception as e:
                     print(f"Could not save intermediate hyperparameters: {e}")
@@ -93,75 +101,6 @@ class HyperparameterOptimizer:
         elapsed = time.time() - start_time
         print(f"\nOptimization completed in {elapsed:.1f}s after {trial} trials")
         print(f"Best score: {best_score:.2f}")
-        print(f"Best hyperparams: {best_params.to_dict()}")
-
-        return best_params, self.results
-
-    def grid_search(self, param_grid=None, training_episodes=300):
-        """Focused grid search on key parameters"""
-        if param_grid is None:
-            param_grid = {
-                'alpha': [0.1, 0.2, 0.3],
-                'gamma': [0.95, 0.99],
-                'epsilon': [0.8, 0.9],
-                'epsilon_decay': [0.995, 0.998]
-            }
-
-        print(f"Starting grid search...")
-        total_combinations = np.prod([len(values) for values in param_grid.values()])
-        print(f"Total combinations: {total_combinations}")
-
-        best_score = -np.inf
-        best_params = None
-        trial = 0
-
-        for alpha in param_grid['alpha']:
-            for gamma in param_grid['gamma']:
-                for epsilon in param_grid['epsilon']:
-                    for epsilon_decay in param_grid['epsilon_decay']:
-                        trial += 1
-                        hyperparams = HyperParams(
-                            alpha=alpha,
-                            gamma=gamma,
-                            epsilon=epsilon,
-                            epsilon_decay=epsilon_decay
-                        )
-
-                        print(f"Trial {trial}/{total_combinations}: "
-                              f"α={alpha}, γ={gamma}, ε={epsilon}, ε_decay={epsilon_decay}")
-
-                        env = LBFEnv(**self.env_params, seed=42)
-                        agents, history = train_advanced_iql(
-                            env, hyperparams, episodes=training_episodes,
-                            eval_interval=training_episodes, verbose=False, seed=42 + trial
-                        )
-
-                        def policy_func(o):
-                            return [agents[i].act(o[i], training=False) for i in range(len(agents))]
-
-                        final_stats = evaluate_agent(self.env_params, policy_func,
-                                                     n_episodes=100, seed=42)
-
-                        score = (final_stats['mean_return'] +
-                                 final_stats['success_rate'] * 15 +
-                                 final_stats['mean_foods'] * 8)
-
-                        result = {
-                            'trial': trial,
-                            'hyperparams': hyperparams.to_dict(),
-                            'score': score,
-                            'stats': final_stats
-                        }
-
-                        self.results.append(result)
-
-                        if score > best_score:
-                            best_score = score
-                            best_params = hyperparams
-
-                        print(f"  Score: {score:.2f}, Return: {final_stats['mean_return']:.2f}")
-
-        print(f"\nBest score: {best_score:.2f}")
         print(f"Best hyperparams: {best_params.to_dict()}")
 
         return best_params, self.results
