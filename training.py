@@ -4,7 +4,73 @@ from collections import deque
 from environment import LBFEnv
 from agent import AdvancedIQLAgent
 from hyperparams import HyperParams
+from maddpg import MADDPG
 
+
+def train_maddpg(env, hyperparams, episodes=1000, eval_interval=200, verbose=True, seed=42):
+    np.random.seed(seed)
+    state_dim = len(env._get_obs()[0])
+    action_dim = 5  # Stay, up, down, left, right
+    maddpg = MADDPG(state_dim, action_dim, env.n_agents, hyperparams)
+    history = {
+        'episode': [],
+        'mean_return': [],
+        'mean_foods': [],
+        'success_rate': []
+    }
+
+    for episode in range(episodes):
+        state = env.reset()
+        episode_rewards = np.zeros(env.n_agents)
+        done = False
+        while not done:
+            actions = maddpg.act(state, training=True)
+            next_state, rewards, done, _ = env.step(actions)
+            maddpg.add_experience(state, actions, rewards, next_state, [done] * env.n_agents)
+            maddpg.update(batch_size=64)
+            state = next_state
+            episode_rewards += np.array(rewards)
+
+        if (episode + 1) % eval_interval == 0:
+            stats = evaluate_maddpg(env_params=env.__dict__, maddpg=maddpg, n_episodes=100, seed=seed)
+            history['episode'].append(episode + 1)
+            history['mean_return'].append(stats['mean_return'])
+            history['mean_foods'].append(stats['mean_foods'])
+            history['success_rate'].append(stats['success_rate'])
+            if verbose:
+                print(f"Episode {episode + 1}/{episodes}: Return={stats['mean_return']:.2f}, "
+                      f"Foods={stats['mean_foods']:.2f}, Success={stats['success_rate']:.2f}")
+
+    return maddpg, history
+
+
+def evaluate_maddpg(env_params, maddpg, n_episodes=100, seed=42):
+    env = LBFEnv(**env_params, seed=seed)
+    episode_returns = []
+    episode_foods = []
+    successes = []
+
+    for _ in range(n_episodes):
+        state = env.reset()
+        episode_reward = np.zeros(env.n_agents)
+        foods_collected = 0
+        done = False
+        while not done:
+            actions = maddpg.act(state, training=False)
+            state, rewards, done, _ = env.step(actions)
+            episode_reward += np.array(rewards)
+            foods_collected += sum(
+                1 for i, exists in enumerate(env.food_exists) if not exists and i < len(env.food_exists))
+        episode_returns.append(np.mean(episode_reward))
+        episode_foods.append(foods_collected / env.n_foods)
+        successes.append(1.0 if foods_collected == env.n_foods else 0.0)
+
+    return {
+        'mean_return': np.mean(episode_returns),
+        'std_return': np.std(episode_returns),
+        'mean_foods': np.mean(episode_foods),
+        'success_rate': np.mean(successes)
+    }
 def evaluate_agent(env_params, agent_policy_func, n_episodes=100, gamma=0.99, seed=42):
     """Robust evaluation function"""
     np.random.seed(seed)
