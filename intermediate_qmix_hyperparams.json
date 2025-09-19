@@ -1,15 +1,17 @@
 {
   "alpha": 0.1,
   "gamma": 0.95,
-  "epsilon": 0.3149053666856281,
-  "epsilon_decay": 0.9941410724308521,
-  "epsilon_min": 0.06262894953542383,
+  "epsilon": 0.29381519803200434,
+  "epsilon_decay": 0.9958444093821296,
+  "epsilon_min": 0.014437808839884221,
   "alpha_decay": 0.95,
   "alpha_min": 0.01,
-  "reward_scaling": 1.080210342237197,
+  "reward_scaling": 1.1519484092926764,
   "exploration_bonus": 0.2,
   "lr_actor": 0.001,
   "lr_critic": 0.002,
-  "tau": 0.01,
-  "lr": 0.0003161310569003738
+  "tau": 0.0032732740601625183,
+  "lr": 0.0027961100565656823,
+  "hidden_dim": 64,
+  "batch_size": 32
 }

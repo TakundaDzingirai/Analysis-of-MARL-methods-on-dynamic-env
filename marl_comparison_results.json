@@ -12,16 +12,16 @@
     "success_rate": 0.578
   },
   "maddpg_stats": {
-    "mean_return": 70.70337008076523,
-    "std_return": 3.3355554603458857,
-    "mean_foods": 0.994,
-    "success_rate": 0.992
+    "mean_return": 69.04903871095775,
+    "std_return": 3.7156706567708566,
+    "mean_foods": 0.996,
+    "success_rate": 0.996
   },
   "qmix_stats": {
-    "mean_return": 70.2719974640631,
-    "std_return": 7.148172119698841,
-    "mean_foods": 0.962,
-    "success_rate": 0.96
+    "mean_return": 69.90914546721754,
+    "std_return": 8.953546505259506,
+    "mean_foods": 0.96,
+    "success_rate": 0.93
   },
   "iql_improvement": {
     "mean_return": 7.90799070690106,
@@ -29,13 +29,13 @@
     "success_rate": 0.22799999999999998
   },
   "maddpg_improvement": {
-    "mean_return": 17.642346009501026,
-    "mean_foods": 0.29266666666666674,
-    "success_rate": 0.642
+    "mean_return": 15.988014639693546,
+    "mean_foods": 0.29466666666666674,
+    "success_rate": 0.646
   },
   "qmix_improvement": {
-    "mean_return": 17.210973392798905,
-    "mean_foods": 0.2606666666666667,
-    "success_rate": 0.61
+    "mean_return": 16.848121395953342,
+    "mean_foods": 0.2586666666666667,
+    "success_rate": 0.5800000000000001
   }
 }

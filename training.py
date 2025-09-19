@@ -135,8 +135,8 @@ def train_qmix(env, hyperparams, episodes=2000, eval_interval=200, verbose=True,
             actions = qmix.act(states, training=True)
             next_states, rewards, done, _ = env.step(actions)
             qmix.add_experience(states, actions, rewards, next_states, [done] * env.n_agents)
-            if len(qmix.replay_buffer) >= 32:  # Smaller batch for stability
-                qmix_loss = qmix.update(batch_size=32)
+            if len(qmix.replay_buffer) >= qmix.batch_size:  # MODIFIED: Use qmix.batch_size instead of hardcoded 32
+                qmix_loss = qmix.update()  # MODIFIED: Removed batch_size argument
             else:
                 qmix_loss = 0.0
             states = next_states

@@ -150,26 +150,21 @@ def main():
     qmix_params = load_optimal_hyperparams(qmix_hyperparams_file)
 
     if qmix_params is None:
-        print("No valid QMIX hyperparameters found. Running random search...")
+        print("No valid QMIX hyperparameters found. Running Bayesian search...")  # MODIFIED: Changed to Bayesian
         try:
-            qmix_params, qmix_results = optimizer.random_search(
-                model_type='qmix', n_trials=60, training_episodes=1000, seed=42, early_stopping_trials=10, min_trials=10
+            qmix_params, qmix_results = optimizer.bayesian_search(  # MODIFIED: Use bayesian_search
+                model_type='qmix', n_trials=60, training_episodes=1000, seed=42, early_stopping_trials=20, min_trials=10
             )
             save_optimal_hyperparams(qmix_params, qmix_hyperparams_file)
         except Exception as e:
             print(f"QMIX optimization failed: {e}")
-            # qmix_params = HyperParams(lr_actor=0.001, lr_critic=0.001, gamma=0.99, tau=0.01)
-            # To this:
-            # qmix_params = HyperParams(lr=0.001, gamma=0.99, tau=0.01, epsilon=0.1, epsilon_decay=0.995,
-            #                           epsilon_min=0.01)
-            qmix_params = HyperParams(lr=0.001, gamma=0.99, tau=0.005, epsilon=0.1, epsilon_decay=0.995, epsilon_min=0.01, hidden_dim=64)
-            # Default QMIX params
+            qmix_params = HyperParams(lr=0.001, gamma=0.99, tau=0.005, epsilon=0.1, epsilon_decay=0.995,
+                                      epsilon_min=0.01, hidden_dim=64, batch_size=64)
             qmix_results = []
     else:
         print(f"Loaded QMIX hyperparameters from '{qmix_hyperparams_file}':")
         print(qmix_params.to_dict())
         qmix_results = []
-
     print(f"\nQMIX TRAINING")
     print("-" * 40)
     env = LBFEnv(**env_params, seed=42)

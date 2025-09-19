@@ -7,7 +7,7 @@ from collections import deque
 
 
 class QNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=64):
+    def __init__(self, state_dim, action_dim, hidden_dim=64):  # MODIFIED: Use hidden_dim
         super(QNetwork, self).__init__()
         self.network = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
@@ -22,7 +22,7 @@ class QNetwork(nn.Module):
 
 
 class MixerNetwork(nn.Module):
-    def __init__(self, n_agents, state_dim, hidden_dim=32):
+    def __init__(self, n_agents, state_dim, hidden_dim=64):  # MODIFIED: Use hidden_dim (default 64 now)
         super(MixerNetwork, self).__init__()
         self.n_agents = n_agents
         self.state_dim = state_dim
@@ -91,16 +91,17 @@ class QMIX:
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.hyperparams = hyperparams
+        self.batch_size = hyperparams.batch_size  # NEW: Configurable batch size (default 64 for stability)
 
         # Individual Q-networks for each agent
-        self.q_networks = [QNetwork(state_dim, action_dim) for _ in range(n_agents)]
-        self.target_q_networks = [QNetwork(state_dim, action_dim) for _ in range(n_agents)]
+        self.q_networks = [QNetwork(state_dim, action_dim, hyperparams.hidden_dim) for _ in range(n_agents)]
+        self.target_q_networks = [QNetwork(state_dim, action_dim, hyperparams.hidden_dim) for _ in range(n_agents)]
         for target, source in zip(self.target_q_networks, self.q_networks):
             target.load_state_dict(source.state_dict())
 
         # Mixer network
-        self.mixer = MixerNetwork(n_agents, state_dim)
-        self.target_mixer = MixerNetwork(n_agents, state_dim)
+        self.mixer = MixerNetwork(n_agents, state_dim, hyperparams.hidden_dim)
+        self.target_mixer = MixerNetwork(n_agents, state_dim, hyperparams.hidden_dim)
         self.target_mixer.load_state_dict(self.mixer.state_dict())
 
         # Optimizers
@@ -127,30 +128,27 @@ class QMIX:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-    def update(self, batch_size=32):
-        if len(self.replay_buffer) < batch_size:
+    def update(self):
+        if len(self.replay_buffer) < self.batch_size:
             return 0.0
 
-        states, actions, rewards, next_states, dones = self.replay_buffer.sample(batch_size)
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.batch_size)
         states = torch.FloatTensor(states)
         actions = torch.LongTensor(actions)
         rewards = torch.FloatTensor(rewards)
         next_states = torch.FloatTensor(next_states)
         dones = torch.FloatTensor(dones)
 
-        # Simple state aggregation for mixer (mean of all agent observations)
-        global_state = states.mean(dim=1)  # [batch_size, state_dim]
-        next_global_state = next_states.mean(dim=1)  # [batch_size, state_dim]
+        global_state = states.mean(dim=1)
+        next_global_state = next_states.mean(dim=1)
 
-        # Current Q-values
         q_values = []
         for i in range(self.n_agents):
-            q_values_i = self.q_networks[i](states[:, i])  # [batch_size, action_dim]
+            q_values_i = self.q_networks[i](states[:, i])
             q_values.append(q_values_i.gather(1, actions[:, i].unsqueeze(1)).squeeze(1))
-        q_values = torch.stack(q_values, dim=1)  # [batch_size, n_agents]
+        q_values = torch.stack(q_values, dim=1)
         q_total = self.mixer(q_values, global_state)
 
-        # Target Q-values
         with torch.no_grad():
             next_q_values = []
             for i in range(self.n_agents):
@@ -159,31 +157,27 @@ class QMIX:
             next_q_values = torch.stack(next_q_values, dim=1)
             next_q_total = self.target_mixer(next_q_values, next_global_state)
 
-            # Use team reward (sum of all agent rewards)
-            team_reward = rewards.sum(dim=1)  # [batch_size]
-            team_done = dones.max(dim=1)[0]  # [batch_size] - episode done if any agent is done
+            team_reward = rewards.sum(dim=1)
+            team_done = dones.max(dim=1)[0]
             target_q = team_reward + self.hyperparams.gamma * (1 - team_done) * next_q_total.squeeze()
 
-        # Loss
         loss = nn.MSELoss()(q_total.squeeze(), target_q)
         self.loss_history.append(loss.item())
+        print(f"QMIX Loss: {loss.item():.4f}")  # NEW: Log loss for debugging
 
-        # Update
         for opt in self.q_optimizers:
             opt.zero_grad()
         self.mixer_optimizer.zero_grad()
         loss.backward()
 
-        # Gradient clipping for stability
         for q in self.q_networks:
-            torch.nn.utils.clip_grad_norm_(q.parameters(), 10.0)
-        torch.nn.utils.clip_grad_norm_(self.mixer.parameters(), 10.0)
+            torch.nn.utils.clip_grad_norm_(q.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(self.mixer.parameters(), 1.0)
 
         for opt in self.q_optimizers:
             opt.step()
         self.mixer_optimizer.step()
 
-        # Soft update target networks
         tau = getattr(self.hyperparams, 'tau', 0.005)
         for target, source in zip(self.target_q_networks, self.q_networks):
             for target_param, param in zip(target.parameters(), source.parameters()):

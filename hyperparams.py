@@ -2,7 +2,8 @@ class HyperParams:
     def __init__(self, alpha=0.1, gamma=0.99, epsilon=0.9, epsilon_decay=0.995,
                  epsilon_min=0.05, alpha_decay=0.95, alpha_min=0.01,
                  reward_scaling=1.0, exploration_bonus=0.2,
-                 lr_actor=0.001, lr_critic=0.002, tau=0.01, lr=None, hidden_dim=64):
+                 lr_actor=0.001, lr_critic=0.002, tau=0.01, lr=None, hidden_dim=64,
+                 batch_size=64):  # NEW: Added batch_size and ensured hidden_dim is configurable
         self.alpha = alpha
         self.gamma = gamma
         self.epsilon = epsilon
@@ -15,7 +16,8 @@ class HyperParams:
         self.lr_actor = lr_actor
         self.lr_critic = lr_critic
         self.tau = tau
-        self.hidden_dim = hidden_dim  # New parameter for QMIX network depth
+        self.hidden_dim = hidden_dim
+        self.batch_size = batch_size  # NEW: For QMIX batch size
 
         # For QMIX compatibility - use single lr if provided, otherwise default to lr_actor
         self.lr = lr if lr is not None else lr_actor
@@ -35,5 +37,6 @@ class HyperParams:
             'lr_critic': self.lr_critic,
             'tau': self.tau,
             'lr': self.lr,
-            'hidden_dim': self.hidden_dim  # Include hidden_dim in the dictionary
+            'hidden_dim': self.hidden_dim,
+            'batch_size': self.batch_size  # NEW: Include batch_size
         }
