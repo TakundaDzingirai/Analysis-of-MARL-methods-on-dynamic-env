@@ -6,25 +6,25 @@
     "success_rate": 0.35
   },
   "iql_stats": {
-    "mean_return": 58.93411942923383,
-    "std_return": 16.67948863917841,
-    "mean_foods": 0.7413333333333333,
-    "success_rate": 0.47
+    "mean_return": 60.96901477816526,
+    "std_return": 16.953984436916716,
+    "mean_foods": 0.7626666666666667,
+    "success_rate": 0.578
   },
   "maddpg_stats": {
-    "mean_return": 67.45461010606704,
-    "std_return": 13.001465451355537,
-    "mean_foods": 0.892,
-    "success_rate": 0.892
+    "mean_return": 69.99405277766427,
+    "std_return": 4.462644786972873,
+    "mean_foods": 0.9906666666666666,
+    "success_rate": 0.988
   },
   "iql_improvement": {
-    "mean_return": 5.873095357969632,
-    "mean_foods": 0.040000000000000036,
-    "success_rate": 0.12
+    "mean_return": 7.90799070690106,
+    "mean_foods": 0.06133333333333346,
+    "success_rate": 0.22799999999999998
   },
   "maddpg_improvement": {
-    "mean_return": 14.393586034802837,
-    "mean_foods": 0.19066666666666676,
-    "success_rate": 0.542
+    "mean_return": 16.933028706400066,
+    "mean_foods": 0.28933333333333333,
+    "success_rate": 0.638
   }
 }

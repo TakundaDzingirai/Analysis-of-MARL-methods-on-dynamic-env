@@ -84,7 +84,7 @@ def main():
     env = LBFEnv(**env_params, seed=42)
     try:
         iql_agents, iql_history = train_iql(
-            env, iql_params, episodes=800, eval_interval=200, verbose=True, seed=42
+            env, iql_params, episodes=2000, eval_interval=200, verbose=True, seed=42
         )
     except Exception as e:
         print(f"IQL training failed: {e}")
@@ -111,7 +111,7 @@ def main():
         print("No valid MADDPG hyperparameters found. Running random search...")
         try:
             maddpg_params, maddpg_results = optimizer.random_search(
-                model_type='maddpg', n_trials=10, training_episodes=200, seed=42, early_stopping_trials=8, min_trials=8
+                model_type='maddpg', n_trials=60, training_episodes=1000, seed=42, early_stopping_trials=10, min_trials=10
             )
             save_optimal_hyperparams(maddpg_params, maddpg_hyperparams_file)
         except Exception as e:
@@ -128,7 +128,7 @@ def main():
     env = LBFEnv(**env_params, seed=42)
     try:
         maddpg, maddpg_history = train_maddpg(
-            env, maddpg_params, episodes=800, eval_interval=200, verbose=True, seed=42
+            env, maddpg_params, episodes=2000, eval_interval=200, verbose=True, seed=42
         )
     except Exception as e:
         print(f"MADDPG training failed: {e}")
