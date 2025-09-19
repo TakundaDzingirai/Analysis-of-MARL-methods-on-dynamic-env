@@ -1,7 +1,6 @@
-from collections import deque
-
 import numpy as np
 import random
+from collections import deque
 from environment import LBFEnv
 from agent import AdvancedIQLAgent
 from maddpg import MADDPG
@@ -95,13 +94,14 @@ def evaluate_agent(env_params, agent_policy_func, n_episodes=100, gamma=0.99, se
     for _ in range(n_episodes):
         obs = env.reset()
         episode_reward = np.zeros(env.n_agents)
-        foods = 0
+        initial_foods = sum(env.food_exists)
         done = False
         while not done:
             actions = agent_policy_func(obs)
             obs, rewards, done, _ = env.step(actions)
             episode_reward += np.array(rewards)
-            foods += sum(1 for i, exists in enumerate(env.food_exists) if not exists and i < len(env.food_exists))
+        final_foods = sum(env.food_exists)
+        foods = initial_foods - final_foods
         returns.append(np.mean(episode_reward))
         foods_collected.append(foods / env.n_foods)
         successes.append(1.0 if foods == env.n_foods else 0.0)
