@@ -6,6 +6,7 @@ from agent import AdvancedIQLAgent
 from maddpg import MADDPG
 from hyperparams import HyperParams
 
+
 def train_iql(env, hyperparams, episodes=5000, eval_interval=200, verbose=True, seed=42):
     np.random.seed(seed)
     random.seed(seed)
@@ -34,23 +35,34 @@ def train_iql(env, hyperparams, episodes=5000, eval_interval=200, verbose=True, 
         recent_returns.append(np.sum(episode_rewards))
 
         if (episode + 1) % eval_interval == 0:
-            stats = evaluate_agent(env_params=env.__dict__, agent_policy_func=lambda o: [agents[i].act(o[i], training=False) for i in range(len(agents))], n_episodes=100, seed=seed)
+            stats = evaluate_agent(
+                env_params={k: v for k, v in env.__dict__.items() if
+                            k in ['grid_size', 'n_agents', 'n_foods', 'agent_levels', 'food_levels', 'max_steps']},
+                agent_policy_func=lambda o: [agents[i].act(o[i], training=False) for i in range(len(agents))],
+                n_episodes=100, seed=seed
+            )
             history['episode'].append(episode + 1)
             history['mean_return'].append(stats['mean_return'])
             history['mean_foods'].append(stats['mean_foods'])
             history['success_rate'].append(stats['success_rate'])
             history['avg_td_error'].append(np.mean([agent.get_stats()['avg_td_error'] for agent in agents]))
             if verbose:
-                print(f"Episode {episode + 1}/{episodes}: Return={stats['mean_return']:.2f}, Foods={stats['mean_foods']:.2f}, Success={stats['success_rate']:.2f}, TD Error={history['avg_td_error'][-1]:.2f}")
+                print(
+                    f"Episode {episode + 1}/{episodes}: Return={stats['mean_return']:.2f}, Foods={stats['mean_foods']:.2f}, Success={stats['success_rate']:.2f}, TD Error={history['avg_td_error'][-1]:.2f}")
 
     return agents, history
 
+
 def train_maddpg(env, hyperparams, episodes=1000, eval_interval=200, verbose=True, seed=42):
+    """Fixed MADDPG training function"""
     np.random.seed(seed)
     random.seed(seed)
+
     state_dim = len(env._get_obs()[0])
     action_dim = 5  # Stay, up, down, left, right
+
     maddpg = MADDPG(state_dim, action_dim, env.n_agents, hyperparams)
+
     history = {
         'episode': [],
         'mean_return': [],
@@ -60,30 +72,57 @@ def train_maddpg(env, hyperparams, episodes=1000, eval_interval=200, verbose=Tru
     }
 
     for episode in range(episodes):
-        state = env.reset()
+        states = env.reset()
         episode_rewards = np.zeros(env.n_agents)
         done = False
+
         while not done:
-            actions = maddpg.act(state, training=True)
-            next_state, rewards, done, _ = env.step(actions)
-            maddpg.add_experience(state, actions, rewards, next_state, [done] * env.n_agents)
-            critic_loss = maddpg.update(batch_size=64)
-            state = next_state
+            # Get actions from MADDPG
+            actions = maddpg.act(states, training=True)
+
+            # Take step in environment
+            next_states, rewards, done, _ = env.step(actions)
+
+            # Store experience in replay buffer
+            maddpg.add_experience(states, actions, rewards, next_states, [done] * env.n_agents)
+
+            # Update agents if we have enough experience
+            if len(maddpg.replay_buffer) >= 64:
+                critic_loss = maddpg.update(batch_size=64)
+            else:
+                critic_loss = 0.0
+
+            states = next_states
             episode_rewards += np.array(rewards)
 
+        # Periodic evaluation
         if (episode + 1) % eval_interval == 0:
-            stats = evaluate_agent(env_params=env.__dict__, agent_policy_func=lambda o: maddpg.act(o, training=False), n_episodes=100, seed=seed)
+            stats = evaluate_agent(
+                env_params={k: v for k, v in env.__dict__.items() if
+                            k in ['grid_size', 'n_agents', 'n_foods', 'agent_levels', 'food_levels', 'max_steps']},
+                agent_policy_func=lambda o: maddpg.act(o, training=False),
+                n_episodes=100, seed=seed
+            )
+
             history['episode'].append(episode + 1)
             history['mean_return'].append(stats['mean_return'])
             history['mean_foods'].append(stats['mean_foods'])
             history['success_rate'].append(stats['success_rate'])
-            history['avg_critic_loss'].append(np.mean([s['avg_critic_loss'] for s in maddpg.get_stats()]))
+
+            # Get average critic loss from all agents
+            agent_stats = maddpg.get_stats()
+            avg_critic_loss = np.mean([s['avg_critic_loss'] for s in agent_stats])
+            history['avg_critic_loss'].append(avg_critic_loss)
+
             if verbose:
-                print(f"Episode {episode + 1}/{episodes}: Return={stats['mean_return']:.2f}, Foods={stats['mean_foods']:.2f}, Success={stats['success_rate']:.2f}, Critic Loss={history['avg_critic_loss'][-1]:.2f}")
+                print(
+                    f"Episode {episode + 1}/{episodes}: Return={stats['mean_return']:.2f}, Foods={stats['mean_foods']:.2f}, Success={stats['success_rate']:.2f}, Critic Loss={avg_critic_loss:.4f}")
 
     return maddpg, history
 
+
 def evaluate_agent(env_params, agent_policy_func, n_episodes=100, gamma=0.99, seed=42):
+    """Evaluate agent policy"""
     np.random.seed(seed)
     random.seed(seed)
     env = LBFEnv(**env_params, seed=seed)
@@ -96,10 +135,12 @@ def evaluate_agent(env_params, agent_policy_func, n_episodes=100, gamma=0.99, se
         episode_reward = np.zeros(env.n_agents)
         initial_foods = sum(env.food_exists)
         done = False
+
         while not done:
             actions = agent_policy_func(obs)
             obs, rewards, done, _ = env.step(actions)
             episode_reward += np.array(rewards)
+
         final_foods = sum(env.food_exists)
         foods = initial_foods - final_foods
         returns.append(np.mean(episode_reward))

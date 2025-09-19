@@ -1,0 +1,14 @@
+{
+  "alpha": 0.1,
+  "gamma": 0.95,
+  "epsilon": 0.9,
+  "epsilon_decay": 0.995,
+  "epsilon_min": 0.05,
+  "alpha_decay": 0.95,
+  "alpha_min": 0.01,
+  "reward_scaling": 1.2093362741644076,
+  "exploration_bonus": 0.2,
+  "lr_actor": 0.0003161310569003738,
+  "lr_critic": 0.001075863328108664,
+  "tau": 0.01190178738475358
+}

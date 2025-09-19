@@ -5,7 +5,7 @@ import os
 from environment import LBFEnv
 from training import train_iql, train_maddpg, evaluate_agent
 from optimization import HyperparameterOptimizer
-from visualization import plot_optimization_results, plot_training_curves
+from visualization import plot_optimization_results, plot_training_curves, plot_comparison_results
 from hyperparams import HyperParams
 
 def load_optimal_hyperparams(filepath='optimal_hyperparams.json'):
@@ -52,25 +52,28 @@ def main():
     def random_policy(obs):
         return [np.random.randint(0, 5) for _ in range(len(obs))]
 
-    baseline_stats = evaluate_agent(env_params, random_policy, n_episodes=500, seed=42)
-    print(f"Random baseline - Return: {baseline_stats['mean_return']:.2f}, "
-          f"Foods: {baseline_stats['mean_foods']:.2f}, "
-          f"Success: {baseline_stats['success_rate']:.2f}")
+    eval_env_params = {k: v for k, v in env.__dict__.items() if k in env_params}
+    try:
+        baseline_stats = evaluate_agent(eval_env_params, random_policy, n_episodes=500, seed=42)
+        print(f"Random baseline - Return: {baseline_stats['mean_return']:.2f}, "
+              f"Foods: {baseline_stats['mean_foods']:.2f}, "
+              f"Success: {baseline_stats['success_rate']:.2f}")
+    except Exception as e:
+        print(f"Baseline evaluation failed: {e}")
+        baseline_stats = {'mean_return': 0.0, 'mean_foods': 0.0, 'success_rate': 0.0}
 
     optimizer = HyperparameterOptimizer(env_params)
 
-    # IQL Optimization
-    print(f"\nIQL HYPERPARAMETER OPTIMIZATION")
+    # IQL Optimization (Load from file, no search)
+    print(f"\nIQL HYPERPARAMETER LOADING")
     print("-" * 40)
-    iql_hyperparams_file = 'optimal_iql_hyperparams.json'
+    iql_hyperparams_file = 'optimal_hyperparams.json'
     iql_params = load_optimal_hyperparams(iql_hyperparams_file)
 
     if iql_params is None:
-        print("No valid IQL hyperparameters found. Running random search...")
-        iql_params, iql_results = optimizer.random_search(
-            model_type='iql', n_trials=30, training_episodes=800, seed=42, early_stopping_trials=15, min_trials=20
-        )
-        save_optimal_hyperparams(iql_params, iql_hyperparams_file)
+        print(f"No valid IQL hyperparameters found in '{iql_hyperparams_file}'. Using defaults...")
+        iql_params = HyperParams()
+        iql_results = []
     else:
         print(f"Loaded IQL hyperparameters from '{iql_hyperparams_file}':")
         print(iql_params.to_dict())
@@ -79,16 +82,24 @@ def main():
     print(f"\nIQL TRAINING")
     print("-" * 40)
     env = LBFEnv(**env_params, seed=42)
-    iql_agents, iql_history = train_iql(
-        env, iql_params, episodes=1000, eval_interval=200, verbose=True, seed=42
-    )
+    try:
+        iql_agents, iql_history = train_iql(
+            env, iql_params, episodes=800, eval_interval=200, verbose=True, seed=42
+        )
+    except Exception as e:
+        print(f"IQL training failed: {e}")
+        return
 
     print(f"\nIQL FINAL EVALUATION")
     print("-" * 40)
     def iql_policy(obs):
         return [iql_agents[i].act(obs[i], training=False) for i in range(len(obs))]
-    iql_stats = evaluate_agent(env_params, iql_policy, n_episodes=500, seed=42)
-    print(f"IQL - Return: {iql_stats['mean_return']:.2f}, Foods: {iql_stats['mean_foods']:.2f}, Success: {iql_stats['success_rate']:.2f}")
+    try:
+        iql_stats = evaluate_agent(eval_env_params, iql_policy, n_episodes=500, seed=42)
+        print(f"IQL - Return: {iql_stats['mean_return']:.2f}, Foods: {iql_stats['mean_foods']:.2f}, Success: {iql_stats['success_rate']:.2f}")
+    except Exception as e:
+        print(f"IQL evaluation failed: {e}")
+        iql_stats = {'mean_return': 0.0, 'mean_foods': 0.0, 'success_rate': 0.0}
 
     # MADDPG Optimization
     print(f"\nMADDPG HYPERPARAMETER OPTIMIZATION")
@@ -98,10 +109,15 @@ def main():
 
     if maddpg_params is None:
         print("No valid MADDPG hyperparameters found. Running random search...")
-        maddpg_params, maddpg_results = optimizer.random_search(
-            model_type='maddpg', n_trials=20, training_episodes=600, seed=42, early_stopping_trials=10, min_trials=15
-        )
-        save_optimal_hyperparams(maddpg_params, maddpg_hyperparams_file)
+        try:
+            maddpg_params, maddpg_results = optimizer.random_search(
+                model_type='maddpg', n_trials=10, training_episodes=200, seed=42, early_stopping_trials=8, min_trials=8
+            )
+            save_optimal_hyperparams(maddpg_params, maddpg_hyperparams_file)
+        except Exception as e:
+            print(f"MADDPG optimization failed: {e}")
+            maddpg_params = HyperParams()
+            maddpg_results = []
     else:
         print(f"Loaded MADDPG hyperparameters from '{maddpg_hyperparams_file}':")
         print(maddpg_params.to_dict())
@@ -110,14 +126,22 @@ def main():
     print(f"\nMADDPG TRAINING")
     print("-" * 40)
     env = LBFEnv(**env_params, seed=42)
-    maddpg, maddpg_history = train_maddpg(
-        env, maddpg_params, episodes=1000, eval_interval=200, verbose=True, seed=42
-    )
+    try:
+        maddpg, maddpg_history = train_maddpg(
+            env, maddpg_params, episodes=800, eval_interval=200, verbose=True, seed=42
+        )
+    except Exception as e:
+        print(f"MADDPG training failed: {e}")
+        return
 
     print(f"\nMADDPG FINAL EVALUATION")
     print("-" * 40)
-    maddpg_stats = evaluate_agent(env_params, lambda o: maddpg.act(o, training=False), n_episodes=500, seed=42)
-    print(f"MADDPG - Return: {maddpg_stats['mean_return']:.2f}, Foods: {maddpg_stats['mean_foods']:.2f}, Success: {maddpg_stats['success_rate']:.2f}")
+    try:
+        maddpg_stats = evaluate_agent(eval_env_params, lambda o: maddpg.act(o, training=False), n_episodes=500, seed=42)
+        print(f"MADDPG - Return: {maddpg_stats['mean_return']:.2f}, Foods: {maddpg_stats['mean_foods']:.2f}, Success: {maddpg_stats['success_rate']:.2f}")
+    except Exception as e:
+        print(f"MADDPG evaluation failed: {e}")
+        maddpg_stats = {'mean_return': 0.0, 'mean_foods': 0.0, 'success_rate': 0.0}
 
     print(f"\nRESULTS COMPARISON")
     print("=" * 70)
@@ -134,6 +158,7 @@ def main():
         maddpg_imp = maddpg_val - baseline_val
         print(f"{label:<20} {baseline_val:<12.3f} {iql_val:<12.3f} {maddpg_val:<12.3f} {iql_imp:+.3f} {maddpg_imp:+.3f}")
 
+    # Add this after your results comparison table
     print(f"\nGENERATING VISUALIZATIONS...")
     if iql_results:
         plot_optimization_results(iql_results, "IQL Hyperparameter Optimization")
@@ -142,6 +167,8 @@ def main():
     plot_training_curves(iql_history, "IQL Training Curves")
     plot_training_curves(maddpg_history, "MADDPG Training Curves")
 
+    # Add this new comprehensive comparison plot
+    plot_comparison_results(baseline_stats, iql_stats, maddpg_stats, 'marl_comparison.png')
     results_summary = {
         'baseline_stats': baseline_stats,
         'iql_stats': iql_stats,
@@ -149,6 +176,7 @@ def main():
         'iql_improvement': {m: iql_stats[m] - baseline_stats[m] for m in metrics},
         'maddpg_improvement': {m: maddpg_stats[m] - baseline_stats[m] for m in metrics}
     }
+
 
     try:
         with open('marl_comparison_results.json', 'w') as f:

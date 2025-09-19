@@ -1,0 +1,30 @@
+{
+  "baseline_stats": {
+    "mean_return": 53.0610240712642,
+    "std_return": 16.15008104663179,
+    "mean_foods": 0.7013333333333333,
+    "success_rate": 0.35
+  },
+  "iql_stats": {
+    "mean_return": 58.93411942923383,
+    "std_return": 16.67948863917841,
+    "mean_foods": 0.7413333333333333,
+    "success_rate": 0.47
+  },
+  "maddpg_stats": {
+    "mean_return": 67.45461010606704,
+    "std_return": 13.001465451355537,
+    "mean_foods": 0.892,
+    "success_rate": 0.892
+  },
+  "iql_improvement": {
+    "mean_return": 5.873095357969632,
+    "mean_foods": 0.040000000000000036,
+    "success_rate": 0.12
+  },
+  "maddpg_improvement": {
+    "mean_return": 14.393586034802837,
+    "mean_foods": 0.19066666666666676,
+    "success_rate": 0.542
+  }
+}
