@@ -39,7 +39,7 @@ def main():
         'n_foods': 3,
         'agent_levels': [1, 2],
         'food_levels': [1, 2, 2],
-        'max_steps': 50
+        'max_steps': 40
     }
 
     env = LBFEnv(**env_params, seed=42)
@@ -54,7 +54,7 @@ def main():
     def random_policy(obs):
         return [np.random.randint(0, 5) for _ in range(len(obs))]
 
-    baseline_stats = evaluate_agent(env_params, random_policy, n_episodes=200, seed=42)
+    baseline_stats = evaluate_agent(env_params, random_policy, n_episodes=200, seed=42) #from 200
     print(f"Random baseline - Return: {baseline_stats['mean_return']:.2f}, "
           f"Foods: {baseline_stats['mean_foods']:.2f}, "
           f"Success: {baseline_stats['success_rate']:.2f}")
@@ -73,7 +73,9 @@ def main():
     if best_params is None:
         print("No valid saved hyperparameters found. Running random search...")
         if use_random_search:
-            best_params, results = optimizer.random_search(n_trials=30, training_episodes=800, seed=42)
+            best_params, results = optimizer.random_search(
+                n_trials=60, training_episodes=1100, seed=42, early_stopping_trials=30, min_trials=25 #from 1100
+            )
             method_name = "Random Search"
         else:
             best_params, results = optimizer.grid_search(training_episodes=600)

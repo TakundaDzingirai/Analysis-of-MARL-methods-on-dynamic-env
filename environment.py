@@ -131,8 +131,8 @@ class LBFEnv:
                 total_level = sum(self.agent_levels[j] for j in agents_at_food)
 
                 if total_level >= f_level:
-                    collection_reward = 11.0 + f_level * 3.0
-                    cooperation_bonus = 1.0 if len(agents_at_food) > 1 else 0.0
+                    collection_reward = 13.0 + f_level * 3.0 #from 11
+                    cooperation_bonus = 1.5 if len(agents_at_food) > 1 else 0.0 #from 1.0
 
                     for j in range(self.n_agents):
                         rewards[j] += collection_reward + cooperation_bonus
@@ -142,14 +142,14 @@ class LBFEnv:
 
         # Completion bonus
         if all(not exists for exists in self.food_exists):
-            completion_bonus = 10.0 * (1.0 - self.step_count / self.max_steps)
+            completion_bonus = 11.0 * (1.0 - self.step_count / self.max_steps) #from 10
             for j in range(self.n_agents):
                 rewards[j] += completion_bonus
             done = True
 
         # Time penalty and uncollected food penalty
         if not any_food_collected:
-            time_penalty = 0.02 * (self.step_count / self.max_steps)
+            time_penalty = 0.04 * (self.step_count / self.max_steps)#from 0.02
             for j in range(self.n_agents):
                 rewards[j] -= time_penalty
         if done and any(self.food_exists):
