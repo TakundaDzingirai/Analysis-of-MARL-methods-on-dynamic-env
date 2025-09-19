@@ -18,7 +18,7 @@ class AdvancedIQLAgent:
         self.epsilon_decay = self.hyperparams.epsilon_decay
         self.epsilon_min = self.hyperparams.epsilon_min
         self.alpha_decay = self.hyperparams.alpha_decay
-        self.alpha_min = self.hyperparams.alpha_min
+        self.alpha_min = getattr(self.hyperparams, 'alpha_min', 0.01)  # Fallback to 0.01
         self.reward_scaling = self.hyperparams.reward_scaling
         self.exploration_bonus = self.hyperparams.exploration_bonus
 
