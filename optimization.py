@@ -2,7 +2,7 @@ import numpy as np
 import time
 import json
 from environment import LBFEnv
-from training import train_iql, train_maddpg, evaluate_agent
+from training import train_iql, train_maddpg, train_qmix, evaluate_agent
 from hyperparams import HyperParams
 
 class HyperparameterOptimizer:
@@ -11,7 +11,7 @@ class HyperparameterOptimizer:
         self.results = []
 
     def random_search(self, model_type='iql', n_trials=30, training_episodes=800, seed=42, early_stopping_trials=15, min_trials=20):
-        """Random search with early stopping for IQL or MADDPG"""
+        """Random search with early stopping for IQL, MADDPG, or QMIX"""
         print(f"Starting random hyperparameter search for {model_type.upper()} with up to {n_trials} trials, "
               f"minimum {min_trials} trials, and early stopping after {early_stopping_trials} trials without improvement...")
         start_time = time.time()
@@ -32,12 +32,21 @@ class HyperparameterOptimizer:
                 'reward_scaling': (0.8, 1.5),
                 'exploration_bonus': (0.1, 0.5)
             }
-        else:  # maddpg
+        elif model_type == 'maddpg':
             param_ranges = {
                 'lr_actor': (1e-4, 1e-3),
                 'lr_critic': (1e-3, 2e-3),
                 'gamma': [0.95, 0.99],
                 'tau': (0.005, 0.02),
+                'reward_scaling': (0.8, 1.5)
+            }
+        else:  # qmix
+            param_ranges = {
+                'lr': (1e-4, 1e-3),  # Learning rate for Q-networks and mixer
+                'gamma': [0.95, 0.99],
+                'epsilon': (0.1, 0.5),  # Initial epsilon for exploration
+                'epsilon_decay': (0.99, 0.999),
+                'epsilon_min': (0.01, 0.1),
                 'reward_scaling': (0.8, 1.5)
             }
 
@@ -57,12 +66,18 @@ class HyperparameterOptimizer:
                     eval_interval=training_episodes // 2, verbose=False, seed=seed + trial
                 )
                 policy_func = lambda o: [agents[i].act(o[i], training=False) for i in range(len(agents))]
-            else:  # maddpg
+            elif model_type == 'maddpg':
                 maddpg, history = train_maddpg(
                     env, hyperparams, episodes=training_episodes,
                     eval_interval=training_episodes // 2, verbose=False, seed=seed + trial
                 )
                 policy_func = lambda o: maddpg.act(o, training=False)
+            else:  # qmix
+                qmix, history = train_qmix(
+                    env, hyperparams, episodes=training_episodes,
+                    eval_interval=training_episodes // 2, verbose=False, seed=seed + trial
+                )
+                policy_func = lambda o: qmix.act(o, training=False)
 
             final_stats = evaluate_agent(self.env_params, policy_func, n_episodes=100, seed=seed)
 

@@ -4,6 +4,7 @@ from collections import deque
 from environment import LBFEnv
 from agent import AdvancedIQLAgent
 from maddpg import MADDPG
+from qmix import QMIX
 from hyperparams import HyperParams
 
 
@@ -54,12 +55,11 @@ def train_iql(env, hyperparams, episodes=5000, eval_interval=200, verbose=True, 
 
 
 def train_maddpg(env, hyperparams, episodes=1000, eval_interval=200, verbose=True, seed=42):
-    """Fixed MADDPG training function"""
     np.random.seed(seed)
     random.seed(seed)
 
     state_dim = len(env._get_obs()[0])
-    action_dim = 5  # Stay, up, down, left, right
+    action_dim = 5
 
     maddpg = MADDPG(state_dim, action_dim, env.n_agents, hyperparams)
 
@@ -77,25 +77,16 @@ def train_maddpg(env, hyperparams, episodes=1000, eval_interval=200, verbose=Tru
         done = False
 
         while not done:
-            # Get actions from MADDPG
             actions = maddpg.act(states, training=True)
-
-            # Take step in environment
             next_states, rewards, done, _ = env.step(actions)
-
-            # Store experience in replay buffer
             maddpg.add_experience(states, actions, rewards, next_states, [done] * env.n_agents)
-
-            # Update agents if we have enough experience
             if len(maddpg.replay_buffer) >= 64:
                 critic_loss = maddpg.update(batch_size=64)
             else:
                 critic_loss = 0.0
-
             states = next_states
             episode_rewards += np.array(rewards)
 
-        # Periodic evaluation
         if (episode + 1) % eval_interval == 0:
             stats = evaluate_agent(
                 env_params={k: v for k, v in env.__dict__.items() if
@@ -108,8 +99,6 @@ def train_maddpg(env, hyperparams, episodes=1000, eval_interval=200, verbose=Tru
             history['mean_return'].append(stats['mean_return'])
             history['mean_foods'].append(stats['mean_foods'])
             history['success_rate'].append(stats['success_rate'])
-
-            # Get average critic loss from all agents
             agent_stats = maddpg.get_stats()
             avg_critic_loss = np.mean([s['avg_critic_loss'] for s in agent_stats])
             history['avg_critic_loss'].append(avg_critic_loss)
@@ -121,8 +110,60 @@ def train_maddpg(env, hyperparams, episodes=1000, eval_interval=200, verbose=Tru
     return maddpg, history
 
 
+def train_qmix(env, hyperparams, episodes=2000, eval_interval=200, verbose=True, seed=42):
+    np.random.seed(seed)
+    random.seed(seed)
+
+    state_dim = len(env._get_obs()[0])
+    action_dim = 5  # Stay, up, down, left, right
+    qmix = QMIX(state_dim, action_dim, env.n_agents, hyperparams)
+
+    history = {
+        'episode': [],
+        'mean_return': [],
+        'mean_foods': [],
+        'success_rate': [],
+        'avg_qmix_loss': []
+    }
+
+    for episode in range(episodes):
+        states = env.reset()
+        episode_rewards = np.zeros(env.n_agents)
+        done = False
+
+        while not done:
+            actions = qmix.act(states, training=True)
+            next_states, rewards, done, _ = env.step(actions)
+            qmix.add_experience(states, actions, rewards, next_states, [done] * env.n_agents)
+            if len(qmix.replay_buffer) >= 32:  # Smaller batch for stability
+                qmix_loss = qmix.update(batch_size=32)
+            else:
+                qmix_loss = 0.0
+            states = next_states
+            episode_rewards += np.array(rewards)
+
+        if (episode + 1) % eval_interval == 0:
+            stats = evaluate_agent(
+                env_params={k: v for k, v in env.__dict__.items() if
+                            k in ['grid_size', 'n_agents', 'n_foods', 'agent_levels', 'food_levels', 'max_steps']},
+                agent_policy_func=lambda o: qmix.act(o, training=False),
+                n_episodes=100, seed=seed
+            )
+
+            history['episode'].append(episode + 1)
+            history['mean_return'].append(stats['mean_return'])
+            history['mean_foods'].append(stats['mean_foods'])
+            history['success_rate'].append(stats['success_rate'])
+            history['avg_qmix_loss'].append(qmix_loss if qmix_loss > 0 else 0.0)
+
+            if verbose:
+                print(
+                    f"Episode {episode + 1}/{episodes}: Return={stats['mean_return']:.2f}, Foods={stats['mean_foods']:.2f}, Success={stats['success_rate']:.2f}, QMIX Loss={history['avg_qmix_loss'][-1]:.4f}")
+
+    return qmix, history
+
+
 def evaluate_agent(env_params, agent_policy_func, n_episodes=100, gamma=0.99, seed=42):
-    """Evaluate agent policy"""
     np.random.seed(seed)
     random.seed(seed)
     env = LBFEnv(**env_params, seed=seed)
