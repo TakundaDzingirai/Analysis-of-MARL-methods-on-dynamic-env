@@ -160,8 +160,9 @@ def main():
             print(f"QMIX optimization failed: {e}")
             # qmix_params = HyperParams(lr_actor=0.001, lr_critic=0.001, gamma=0.99, tau=0.01)
             # To this:
-            qmix_params = HyperParams(lr=0.001, gamma=0.99, tau=0.01, epsilon=0.1, epsilon_decay=0.995,
-                                      epsilon_min=0.01)
+            # qmix_params = HyperParams(lr=0.001, gamma=0.99, tau=0.01, epsilon=0.1, epsilon_decay=0.995,
+            #                           epsilon_min=0.01)
+            qmix_params = HyperParams(lr=0.001, gamma=0.99, tau=0.005, epsilon=0.1, epsilon_decay=0.995, epsilon_min=0.01, hidden_dim=64)
             # Default QMIX params
             qmix_results = []
     else:
