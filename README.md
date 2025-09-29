@@ -111,7 +111,7 @@ qmix_params, results = optimizer.bayesian_search(
 
 ### Testing on Larger Environments
 ```bash
-python test_new_env.py
+python test_new_env.py (to be implemented Later as its complex test on a new environment in terms of space might be tricky)
 ```
 Tests the trained models' generalization to an 8x8 environment.
 
